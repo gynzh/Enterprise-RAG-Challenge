@@ -1,0 +1,10 @@
+[
+    {
+      "text": "Did TSX_Y announce a share buyback plan in the annual report?",
+      "kind": "boolean"
+    },
+    {
+      "text": "Did Holley Inc. mention any mergers or acquisitions in the annual report?",
+      "kind": "boolean"
+    }
+]
