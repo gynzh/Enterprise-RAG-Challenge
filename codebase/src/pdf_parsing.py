@@ -3,12 +3,12 @@ import time
 import logging
 import re
 import json
-from tabulate import tabulate
+from tabulate import tabulate # 表格格式化
 from pathlib import Path
 from typing import Iterable, List
 
 # from docling.backend.docling_parse_backend import DoclingParseDocumentBackend
-from docling.backend.docling_parse_v2_backend import DoclingParseV2DocumentBackend
+from docling.backend.docling_parse_v2_backend import DoclingParseV2DocumentBackend # 文档解析库
 # from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 from docling.datamodel.base_models import ConversionStatus
 from docling.datamodel.document import ConversionResult

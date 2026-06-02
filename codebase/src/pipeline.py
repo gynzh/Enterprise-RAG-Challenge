@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from pathlib import Path
+# pyprojroot 会寻找 .git、.here 等标志性文件来确定根目
 from pyprojroot import here
 import logging
-import os
 import json
 import pandas as pd
 

@@ -1,12 +1,15 @@
-import click
+import click # 命令行工具库，用来把python函数变为终端命令
 from pathlib import Path
 from src.pipeline import Pipeline, configs, preprocess_configs
 
+# 注册命令组，之后的所有命令都挂在这个下面
 @click.group()
 def cli():
     """Pipeline command line interface for processing PDF reports and questions."""
     pass
 
+#把 download_models() 这个函数注册成 cli 命令组下面的一个子命令。
+# 调用方式 python main.py download-models（Click 默认会把函数名里的下划线 _ 转换成短横线 -）
 @cli.command()
 def download_models():
     """Download required docling models."""
