@@ -1,16 +1,15 @@
 """RAG Challenge result visualization app.
 
-Fixes included in this version:
-1. The PDF preview is rendered with the dedicated ``gradio_pdf`` component when
-   available, instead of a giant base64 string inside ``gr.HTML``.
-2. The fallback HTML preview uses Gradio's file-serving route and requires
-   ``allowed_paths`` in ``launch``.
-3. All right-side tab contents are prepared on load/refresh/document change;
-   the UI no longer depends on ``Tab.select`` callbacks.
-4. Custom cards explicitly set foreground colors, so they remain readable in
-   both light and dark browser/Gradio themes.
+v3 fixes:
+1. Remove the third-party ``gradio_pdf`` custom component from the runtime path.
+   In Gradio 6.x it can leave the browser stuck at "加载中...".
+2. Do not rely on ``Blocks.load`` to populate the initial page.  All initial
+   HTML is rendered before the UI is served, so the dashboard is visible even if
+   front-end events fail.
+3. Serve PDFs through a small FastAPI route ``/pdf/{doc_id}`` with
+   ``Content-Disposition: inline`` and display them in a normal iframe.
+4. Keep all tabs pre-rendered and refresh them together on document changes.
 """
-
 from __future__ import annotations
 
 import html
@@ -20,6 +19,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 import gradio as gr
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+import uvicorn
 
 # Add visualization directory to Python path so ``components`` imports work when
 # running either ``python app.py`` or ``python run.py`` from this directory.
@@ -28,14 +30,6 @@ sys.path.insert(0, str(current_dir))
 
 from components.data_loader import RAGResultsLoader  # noqa: E402
 from components.pdf_viewer import PDFViewer  # noqa: E402
-
-try:  # noqa: E402
-    from gradio_pdf import PDF as GradioPDF  # type: ignore
-
-    HAS_GRADIO_PDF = True
-except Exception:  # pragma: no cover - fallback path for old environments
-    GradioPDF = None  # type: ignore
-    HAS_GRADIO_PDF = False
 
 
 class RAGVisualizationApp:
@@ -53,9 +47,9 @@ class RAGVisualizationApp:
         self.current_doc = self.available_docs[0] if self.available_docs else ""
         self.current_config = self.available_configs[0] if self.available_configs else "gemini_thinking_fc"
 
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
     # Generic helpers
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
     @staticmethod
     def _json_preview(data: Any, limit: int = 8000) -> str:
         """Return an escaped JSON preview that is safe to embed in HTML."""
@@ -101,19 +95,19 @@ class RAGVisualizationApp:
     @staticmethod
     def _card(title: str, body_html: str, css_class: str = "content-card") -> str:
         return f"""
-        <section class="{css_class}">
+        <div class="{css_class}">
           <h3>{html.escape(title)}</h3>
           {body_html}
-        </section>
+        </div>
         """
 
     @staticmethod
     def _error(message: str) -> str:
         return f"""
-        <section class="error-card">
+        <div class="error-card">
           <h3>❌ 出错</h3>
           <p>{html.escape(message)}</p>
-        </section>
+        </div>
         """
 
     @staticmethod
@@ -128,21 +122,17 @@ class RAGVisualizationApp:
                 </div>
                 """
             )
-        return f"<div class='stats-grid'>{''.join(cells)}</div>"
+        return f"<div class=\"stats-grid\">{''.join(cells)}</div>"
 
     def _current_pdf_path(self) -> Path:
         return self.data_path / "pdf_reports" / f"{self.current_doc}.pdf"
 
-    def _pdf_output(self) -> str | None:
-        """Return the proper PDF output value for the active preview component."""
-        pdf_path = self._current_pdf_path()
-        if HAS_GRADIO_PDF:
-            return PDFViewer.get_pdf_path(pdf_path)
-        return PDFViewer.create_pdf_viewer(pdf_path, self.current_doc).value
+    def _pdf_output(self) -> str:
+        return PDFViewer.create_pdf_viewer(self._current_pdf_path(), self.current_doc).value
 
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
     # Event handlers
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
     def update_document(self, doc_id: str):
         """Update selected document and refresh all content panes."""
         self.current_doc = doc_id or ""
@@ -154,16 +144,10 @@ class RAGVisualizationApp:
         return self.get_qa_content()
 
     def refresh_all_content(self):
-        """Refresh PDF preview and all tab contents.
-
-        This deliberately does not use ``Tab.select``. In several Gradio
-        versions the tab select event is easy to miss or can be affected by
-        front-end rendering issues, so preparing the contents up front is more
-        stable for a local debugging dashboard.
-        """
+        """Refresh PDF preview and all right-side tab contents."""
         if not self.current_doc:
             empty = self._error("未选择文档")
-            return None if HAS_GRADIO_PDF else empty, empty, empty, empty, empty
+            return empty, empty, empty, empty, empty
 
         return (
             self._pdf_output(),
@@ -173,9 +157,9 @@ class RAGVisualizationApp:
             self.get_ingestion_content(),
         )
 
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
     # Content builders
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
     def get_parsing_content(self) -> str:
         if not self.current_doc:
             return self._error("未选择文档")
@@ -228,7 +212,11 @@ class RAGVisualizationApp:
             ]
         )
         body += "<h4>解析数据轻量预览</h4>"
-        body += f"<pre class='data-preview-content'>{self._json_preview({'metainfo': metainfo, 'pages_preview': page_preview, 'tables_preview': table_preview})}</pre>"
+        body += (
+            "<pre class=\"data-preview-content\">"
+            + self._json_preview({"metainfo": metainfo, "pages_preview": page_preview, "tables_preview": table_preview})
+            + "</pre>"
+        )
         return self._card("📄 PDF解析统计", body)
 
     def get_serialization_content(self) -> str:
@@ -246,7 +234,7 @@ class RAGVisualizationApp:
             if len(content_preview) > 5000:
                 content_preview = content_preview[:5000] + "\n\n... 内容过长，已截断"
             sections.append("<h4>Markdown格式报告</h4>")
-            sections.append(f"<pre class='markdown-content'>{html.escape(content_preview)}</pre>")
+            sections.append(f"<pre class=\"markdown-content\">{html.escape(content_preview)}</pre>")
 
         if merged_data:
             merged_preview = {
@@ -254,9 +242,9 @@ class RAGVisualizationApp:
                 "preview": merged_data,
             }
             sections.append("<h4>合并后的报告数据预览</h4>")
-            sections.append(f"<pre class='data-preview-content'>{self._json_preview(merged_preview)}</pre>")
+            sections.append(f"<pre class=\"data-preview-content\">{self._json_preview(merged_preview)}</pre>")
 
-        return self._card("🔁 表格序列化结果", "".join(sections))
+        return self._card("📘 表格序列化结果", "".join(sections))
 
     def get_ingestion_content(self) -> str:
         if not self.current_doc:
@@ -285,11 +273,11 @@ class RAGVisualizationApp:
                 "first_chunks": chunks[:5],
             }
             body += "<h4>切块数据轻量预览</h4>"
-            body += f"<pre class='data-preview-content'>{self._json_preview(chunk_preview)}</pre>"
+            body += f"<pre class=\"data-preview-content\">{self._json_preview(chunk_preview)}</pre>"
         else:
-            body += "<p class='warning-text'>❌ 切块数据不存在</p>"
+            body += "<p class=\"warning-text\">❌ 切块数据不存在</p>"
 
-        return self._card("🗃️ 数据注入统计", body)
+        return self._card("🧱 数据注入统计", body)
 
     def get_qa_content(self) -> str:
         if not self.current_doc:
@@ -336,7 +324,7 @@ class RAGVisualizationApp:
                 error_preview = str(error_info)
                 if len(error_preview) > 100:
                     error_preview = error_preview[:100] + "..."
-                answer += f" <span class='error-text'>(错误: {html.escape(error_preview)})</span>"
+                answer += f" (错误: {html.escape(error_preview)})"
 
             refs_text = "无引用"
             if references:
@@ -357,181 +345,50 @@ class RAGVisualizationApp:
 
         body += "".join(detail_items)
         if len(qa_results) > 10:
-            body += f"<p class='more-text'>... 还有 {len(qa_results) - 10} 个问答对</p>"
+            body += f"<p class=\"more-text\">... 还有 {len(qa_results) - 10} 个问答对</p>"
 
         return self._card("🎯 问答结果统计", body)
 
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
     # UI
-    # ---------------------------------------------------------------------
+    # ------------------------------------------------------------------
     def create_interface(self):
         css = """
-        .main-container {
-            max-width: 1500px;
-            margin: 0 auto;
-            min-height: 100vh;
-        }
-        .config-panel {
-            background: #eef6ff;
-            padding: 10px;
-            border-radius: 10px;
-            margin-bottom: 16px;
-        }
-        .content-row {
-            gap: 18px;
-            align-items: stretch;
-        }
-        .pdf-column, .tabs-column {
-            min-width: 0;
-        }
+        .main-container { max-width: 1500px; margin: 0 auto; min-height: 100vh; }
+        .config-panel { background: #eef6ff; padding: 10px; border-radius: 10px; margin-bottom: 16px; }
+        .content-row { gap: 18px; align-items: stretch; }
+        .pdf-column, .tabs-column { min-width: 0; }
         .content-card, .pdf-viewer-container, .error-card {
-            background: #ffffff;
-            color: #111827;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            padding: 16px;
-            box-shadow: 0 1px 4px rgba(15, 23, 42, 0.10);
+            background: #ffffff; color: #111827; border: 1px solid #e5e7eb;
+            border-radius: 12px; padding: 16px; box-shadow: 0 1px 4px rgba(15, 23, 42, 0.10);
         }
-        .content-card h3, .content-card h4,
-        .pdf-viewer-container h3, .error-card h3 {
-            color: #111827;
-            margin-top: 0;
-        }
-        .content-card p, .content-card div,
-        .pdf-viewer-container p, .pdf-viewer-container div,
-        .error-card p {
-            color: #111827;
-        }
-        .pdf-viewer-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            margin-bottom: 12px;
-        }
-        .pdf-meta {
-            color: #4b5563 !important;
-            font-size: 13px;
-            overflow-wrap: anywhere;
-        }
-        .pdf-meta-sep {
-            margin: 0 8px;
-            color: #9ca3af !important;
-        }
-        .pdf-download-link {
-            display: inline-block;
-            padding: 8px 12px;
-            border-radius: 8px;
-            background: #2563eb;
-            color: #ffffff !important;
-            text-decoration: none !important;
-            white-space: nowrap;
-            font-weight: 700;
-        }
-        .pdf-preview-frame {
-            display: block;
-            width: 100%;
-            height: calc(100vh - 300px);
-            min-height: 720px;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            background: #f9fafb;
-        }
-        .pdf-native, .pdf-html {
-            min-height: 760px;
-        }
-        .pdf-fallback {
-            margin: 10px 0 0 0;
-            color: #4b5563 !important;
-            font-size: 13px;
-        }
-        .tab-content {
-            min-height: 760px;
-            max-height: calc(100vh - 235px);
-            overflow-y: auto;
-            padding-right: 4px;
-        }
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
-            gap: 12px;
-            margin: 12px 0 16px 0;
-        }
-        .stat-item {
-            padding: 10px 12px;
-            background: #f8fafc;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            overflow-wrap: anywhere;
-        }
-        .stat-label {
-            color: #6b7280 !important;
-            font-size: 12px;
-            margin-bottom: 4px;
-        }
-        .stat-value {
-            color: #111827 !important;
-            font-size: 15px;
-            font-weight: 700;
-        }
-        .data-preview-content, .markdown-content {
-            white-space: pre-wrap;
-            background: #0f172a;
-            color: #e5e7eb !important;
-            padding: 12px;
-            border-radius: 8px;
-            overflow: auto;
-            max-height: 460px;
-            font-size: 13px;
-            line-height: 1.45;
-        }
-        .qa-detail-item {
-            display: flex;
-            gap: 12px;
-            margin: 12px 0;
-            padding: 12px;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            background: #fafafa;
-        }
-        .qa-number {
-            width: 36px;
-            height: 36px;
-            flex: 0 0 36px;
-            background: #2563eb;
-            color: #ffffff !important;
-            border-radius: 999px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-        }
-        .qa-content {
-            line-height: 1.65;
-            overflow-wrap: anywhere;
-        }
-        .error-card {
-            color: #991b1b;
-            background: #fef2f2;
-            border-color: #fecaca;
-        }
-        .error-card h3, .error-card p, .error-text {
-            color: #b91c1c !important;
-        }
-        .warning-text {
-            color: #b45309 !important;
-        }
-        .more-text {
-            color: #4b5563 !important;
-            margin-top: 12px;
-        }
+        .content-card h3, .content-card h4, .pdf-viewer-container h3, .error-card h3 { color: #111827; margin-top: 0; }
+        .content-card p, .content-card div, .pdf-viewer-container p, .pdf-viewer-container div, .error-card p { color: #111827; }
+        .pdf-viewer-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+        .pdf-meta { color: #4b5563 !important; font-size: 13px; overflow-wrap: anywhere; }
+        .pdf-meta-sep { margin: 0 8px; color: #9ca3af !important; }
+        .pdf-download-link { display: inline-block; padding: 8px 12px; border-radius: 8px; background: #2563eb; color: #ffffff !important; text-decoration: none !important; white-space: nowrap; font-weight: 700; }
+        .pdf-preview-frame { display: block; width: 100%; height: calc(100vh - 300px); min-height: 720px; border: 1px solid #d1d5db; border-radius: 8px; background: #f9fafb; }
+        .pdf-fallback { margin: 10px 0 0 0; color: #4b5563 !important; font-size: 13px; }
+        .tab-content { min-height: 760px; max-height: calc(100vh - 235px); overflow-y: auto; padding-right: 4px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 12px; margin: 12px 0 16px 0; }
+        .stat-item { padding: 10px 12px; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; overflow-wrap: anywhere; }
+        .stat-label { color: #6b7280 !important; font-size: 12px; margin-bottom: 4px; }
+        .stat-value { color: #111827 !important; font-size: 15px; font-weight: 700; }
+        .data-preview-content, .markdown-content { white-space: pre-wrap; background: #0f172a; color: #e5e7eb !important; padding: 12px; border-radius: 8px; overflow: auto; max-height: 460px; font-size: 13px; line-height: 1.45; }
+        .qa-detail-item { display: flex; gap: 12px; margin: 12px 0; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fafafa; }
+        .qa-number { width: 36px; height: 36px; flex: 0 0 36px; background: #2563eb; color: #ffffff !important; border-radius: 999px; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+        .qa-content { line-height: 1.65; overflow-wrap: anywhere; }
+        .error-card { color: #991b1b; background: #fef2f2; border-color: #fecaca; }
+        .error-card h3, .error-card p, .error-text { color: #b91c1c !important; }
+        .warning-text { color: #b45309 !important; }
+        .more-text { color: #4b5563 !important; margin-top: 12px; }
         """
 
-        with gr.Blocks(
-            title="RAG Challenge 复现结果可视化",
-            theme=gr.themes.Soft(primary_hue="blue"),
-            css=css,
-        ) as interface:
+        initial_pdf, initial_qa, initial_parsing, initial_serialization, initial_ingestion = self.refresh_all_content()
+
+        with gr.Blocks(title="RAG Challenge 复现结果可视化") as interface:
+            gr.HTML(f"<style>{css}</style>")
             with gr.Column(elem_classes="main-container"):
                 gr.Markdown("# 🏆 RAG Challenge 复现结果可视化")
 
@@ -555,52 +412,59 @@ class RAGVisualizationApp:
 
                 with gr.Row(elem_classes="content-row"):
                     with gr.Column(scale=1, min_width=560, elem_classes="pdf-column"):
-                        if HAS_GRADIO_PDF:
-                            pdf_viewer = GradioPDF(
-                                value=PDFViewer.get_pdf_path(self._current_pdf_path()) if self.current_doc else None,
-                                label="PDF预览",
-                                height=820,
-                                elem_classes=["pdf-native"],
-                            )
-                        else:
-                            pdf_viewer = gr.HTML(
-                                PDFViewer.create_pdf_viewer(self._current_pdf_path(), self.current_doc).value
-                                if self.current_doc
-                                else self._error("未选择文档"),
-                                label="PDF预览",
-                                elem_classes=["pdf-html"],
-                            )
+                        pdf_viewer = gr.HTML(initial_pdf, label="PDF预览")
 
                     with gr.Column(scale=1, min_width=520, elem_classes="tabs-column"):
                         with gr.Tabs():
                             with gr.Tab("🎯 问答结果"):
-                                qa_content = gr.HTML(
-                                    "<section class='content-card'>问答结果将在此显示...</section>",
-                                    elem_classes="tab-content",
-                                )
+                                qa_content = gr.HTML(initial_qa, elem_classes="tab-content")
                             with gr.Tab("📄 PDF解析"):
-                                parsing_content = gr.HTML(
-                                    "<section class='content-card'>PDF解析结果将在此显示...</section>",
-                                    elem_classes="tab-content",
-                                )
-                            with gr.Tab("🔁 序列化"):
-                                serialization_content = gr.HTML(
-                                    "<section class='content-card'>序列化结果将在此显示...</section>",
-                                    elem_classes="tab-content",
-                                )
-                            with gr.Tab("🗃️ 数据注入"):
-                                ingestion_content = gr.HTML(
-                                    "<section class='content-card'>数据注入结果将在此显示...</section>",
-                                    elem_classes="tab-content",
-                                )
+                                parsing_content = gr.HTML(initial_parsing, elem_classes="tab-content")
+                            with gr.Tab("🔄 序列化"):
+                                serialization_content = gr.HTML(initial_serialization, elem_classes="tab-content")
+                            with gr.Tab("🧱 数据注入"):
+                                ingestion_content = gr.HTML(initial_ingestion, elem_classes="tab-content")
 
                 outputs = [pdf_viewer, qa_content, parsing_content, serialization_content, ingestion_content]
                 doc_dropdown.change(fn=self.update_document, inputs=[doc_dropdown], outputs=outputs)
                 config_dropdown.change(fn=self.update_config, inputs=[config_dropdown], outputs=[qa_content])
                 refresh_btn.click(fn=self.refresh_all_content, outputs=outputs)
-                interface.load(fn=self.refresh_all_content, outputs=outputs)
 
         return interface
+
+
+def create_fastapi_app(viz_app: RAGVisualizationApp, interface: gr.Blocks) -> FastAPI:
+    """Create a FastAPI host with a dedicated inline-PDF route."""
+    api = FastAPI()
+
+    @api.get("/pdf/{doc_id}")
+    def serve_pdf(doc_id: str):
+        if doc_id not in viz_app.available_docs:
+            raise HTTPException(status_code=404, detail="Unknown document id")
+
+        pdf_path = (viz_app.data_path / "pdf_reports" / f"{doc_id}.pdf").resolve()
+        if not pdf_path.exists() or not pdf_path.is_file():
+            raise HTTPException(status_code=404, detail="PDF file not found")
+
+        headers = {
+            "Content-Disposition": f'inline; filename="{pdf_path.name}"',
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        }
+        return FileResponse(str(pdf_path), media_type="application/pdf", filename=pdf_path.name, headers=headers)
+
+    @api.get("/health")
+    def health():
+        return {"ok": True, "docs": len(viz_app.available_docs), "configs": len(viz_app.available_configs)}
+
+    # Keep allowed_paths for Gradio-generated file URLs if future components need
+    # them.  The PDF iframe itself uses /pdf/{doc_id}, so it does not depend on
+    # Gradio's internal file-serving route.
+    try:
+        return gr.mount_gradio_app(api, interface, path="/", allowed_paths=[str(viz_app.data_path)])
+    except TypeError:
+        # Older Gradio versions may not expose allowed_paths on mount_gradio_app.
+        return gr.mount_gradio_app(api, interface, path="/")
 
 
 def main():
@@ -619,21 +483,15 @@ def main():
 
     print(f"✅ 找到 {len(app.available_docs)} 个文档: {app.available_docs}")
     print(f"✅ 找到 {len(app.available_configs)} 个配置: {app.available_configs}")
-    if HAS_GRADIO_PDF:
-        print("✅ 使用 gradio_pdf 组件进行 PDF 预览")
-    else:
-        print("⚠️ 未安装 gradio_pdf，使用 HTML iframe 备用预览。建议运行: pip install -r requirements_viz.txt")
+    print("✅ 使用 FastAPI /pdf/{doc_id} 路由 + 浏览器原生 PDF iframe 预览")
 
     interface = app.create_interface()
+    fastapi_app = create_fastapi_app(app, interface)
+
     print("🚀 启动可视化界面...")
     print("🌐 界面地址: http://127.0.0.1:7860")
-    interface.launch(
-        server_name="127.0.0.1",
-        server_port=7860,
-        share=False,
-        show_error=True,
-        allowed_paths=[str(data_path)],
-    )
+    print("🩺 健康检查: http://127.0.0.1:7860/health")
+    uvicorn.run(fastapi_app, host="127.0.0.1", port=7860, log_level="info")
 
 
 if __name__ == "__main__":
