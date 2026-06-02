@@ -1,0 +1,52 @@
+[project]
+name = "enterprise-rag-challenge"
+version = "0.1.0"
+description = "Enterprise RAG Challenge reproduction pipeline and visualization"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [ # 生产环境必须得直接依赖列表
+    "aiohttp==3.10.10",
+    "tiktoken==0.8.0",
+    "python-dotenv==1.0.1",
+    "pydantic==2.9.2",
+    "openai==1.51.2",
+    "requests==2.32.3",
+    "tqdm==4.66.5",
+    "rank-bm25==0.2.2",
+    "tabulate==0.9.0",
+    "docling==2.14.0",
+    "PyPDF2==3.0.1",
+    "pandas==2.2.3",
+    "faiss-cpu==1.9.0.post1",
+    "langchain==0.3.3",
+    "json-repair==0.35.0",
+    "google-ai-generativelanguage==0.6.15",
+    "google-api-core==2.24.1",
+    "google-api-python-client==2.160.0",
+    "google-auth==2.38.0",
+    "google-auth-httplib2==0.2.0",
+    "google-generativeai==0.8.4",
+    "googleapis-common-protos==1.66.0",
+    "click==8.1.7",
+    "httpx==0.27.2",
+    "tenacity==8.3.0",
+    "sentence-transformers==5.0.0",
+    "pyprojroot==0.3.0",
+]
+
+[dependency-groups] # 可选依赖分组
+dev = [
+    "ipykernel>=6.29.5",
+    "pytest>=8.3.0",
+    "ruff>=0.8.0",
+]
+viz = [
+    "gradio>=5.0.0,<6.0.0",
+]
+
+[tool.uv]
+package = false  # 表示该项目不用于打包发布（如 PyPI），而是应用型项目
+
+[tool.ruff] # 代码规范工具 Ruff 的配置：
+line-length = 100       # 单行代码最大长度（默认 88，此处放宽至 100）
+target-version = "py312" # 目标 Python 版本（与 requires-python 一致）
