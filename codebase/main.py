@@ -81,6 +81,7 @@ def root_option(function):
 @click.group()
 def cli():
     """Pipeline command line interface for processing PDF reports and questions."""
+    load_project_env()
 
 
 @cli.command()

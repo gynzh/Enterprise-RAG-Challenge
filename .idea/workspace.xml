@@ -4,16 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c5e81c4f-42e2-4869-a22f-668db1c15c04" name="更改" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/Enterprise_RAG_Challenge.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/Chapter-7.iml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+    <list default="true" id="c5e81c4f-42e2-4869-a22f-668db1c15c04" name="更改" comment="main.py中download模型方法修改">
       <change beforePath="$PROJECT_DIR$/codebase/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/codebase/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codebase/pyproject.toml" beforeDir="false" afterPath="$PROJECT_DIR$/codebase/pyproject.toml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/codebase/src/pdf_parsing.py" beforeDir="false" afterPath="$PROJECT_DIR$/codebase/src/pdf_parsing.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/codebase/src/pipeline.py" beforeDir="false" afterPath="$PROJECT_DIR$/codebase/src/pipeline.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codebase/uv.lock" beforeDir="false" afterPath="$PROJECT_DIR$/codebase/uv.lock" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -76,6 +71,28 @@
       <option name="presentableId" value="Default" />
       <updated>1780401072415</updated>
     </task>
+    <task id="LOCAL-00001" summary="main.py中download模型方法修改（未完成）">
+      <option name="closed" value="true" />
+      <created>1780639749939</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1780639749939</updated>
+    </task>
+    <task id="LOCAL-00002" summary="main.py中download模型方法修改">
+      <option name="closed" value="true" />
+      <created>1780642232290</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1780642232290</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="main.py中download模型方法修改（未完成）" />
+    <MESSAGE value="main.py中download模型方法修改" />
+    <option name="LAST_COMMIT_MESSAGE" value="main.py中download模型方法修改" />
   </component>
 </project>

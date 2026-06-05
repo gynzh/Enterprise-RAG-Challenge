@@ -75,13 +75,8 @@ class PDFParser:
         from docling.datamodel.base_models import InputFormat
         from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
         
-        artifacts_path = os.environ.get("DOCLING_ARTIFACTS_PATH")
-        if artifacts_path:
-            pipeline_options = PdfPipelineOptions(
-                artifacts_path=Path(artifacts_path).expanduser().resolve()
-            )
-        else:
-            pipeline_options = PdfPipelineOptions()
+
+        pipeline_options = PdfPipelineOptions()
         pipeline_options.do_ocr = True # 开启OCR
         ocr_options = EasyOcrOptions(lang=['en'], force_full_page_ocr=False) # 识别英文，不强制整页OCR
         pipeline_options.ocr_options = ocr_options
