@@ -33,6 +33,7 @@ dependencies = [ # 生产环境必须得直接依赖列表
     "tenacity==8.3.0",
     "sentence-transformers==5.0.0",
     "pyprojroot==0.3.0",
+    "easyocr>=1.7.2",
 ]
 
 [dependency-groups] # 可选依赖分组
