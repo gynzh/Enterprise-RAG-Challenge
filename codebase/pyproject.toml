@@ -9,7 +9,7 @@ dependencies = [ # 生产环境必须得直接依赖列表
     "aiohttp==3.10.10",
     "tiktoken==0.8.0",
     "python-dotenv==1.0.1",
-    "pydantic==2.9.2",
+    "pydantic>=2.10,<3",
     "openai==1.51.2",
     "requests==2.32.3",
     "tqdm==4.66.5",
