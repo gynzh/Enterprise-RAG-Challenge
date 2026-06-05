@@ -1,8 +1,9 @@
-from __future__ import annotations
+from __future__ import annotations # 让 Python 延迟解析类型注解，从而更方便地在注解里引用尚未完全定义的类或类型。
 
 import sys
 from pathlib import Path
 from typing import Any
+import os
 
 import click
 
@@ -61,20 +62,87 @@ def root_option(function):
             "For this repository, `--root data/test_set` is usually what you want."
         ),
     )(function)
+    """click.option(...) 先创建一个装饰器；
+然后这个装饰器再去装饰传进来的 function；
+最后返回加好 --root 参数的新函数。"""
 
 
 @click.group()
 def cli():
     """Pipeline command line interface for processing PDF reports and questions."""
 
+def resolve_model_path(output_dir: str | None) -> Path | None:
+    """Resolve the directory used to store Docling models."""
+    if output_dir is None:
+        output_dir = os.environ.get("DOCLING_ARTIFACTS_PATH")
+
+    if output_dir is None:
+        return None
+
+    candidate = Path(output_dir).expanduser()
+
+    if not candidate.is_absolute():
+        candidate = PROJECT_ROOT / candidate
+
+    return candidate.resolve()
 
 @cli.command()
-def download_models():
-    """Download required docling models."""
-    Pipeline, _, _ = load_pipeline_objects()
-    click.echo("Downloading docling models...")
-    Pipeline.download_docling_models()
+@click.option(
+    "--output-dir",
+    "-o",
+    type=click.Path(file_okay=False, dir_okay=True, path_type=str),
+    default=None,
+    help=(
+        "Directory to save Docling models. "
+        "If omitted, uses Docling's default cache."
+    ),
+)
+def download_models(output_dir: str | None):
+    """Download required Docling models explicitly."""
+    import subprocess
 
+    cmd = ["docling-tools", "models", "download"]
+
+    if output_dir is not None:
+        model_path = Path(output_dir).expanduser()
+
+        if not model_path.is_absolute():
+            model_path = PROJECT_ROOT / model_path
+
+        model_path = model_path.resolve()
+        model_path.mkdir(parents=True, exist_ok=True)
+
+        cmd.extend(["-o", str(model_path)])
+
+        click.echo(f"Downloading Docling models to: {model_path}")
+    else:
+        model_path = None
+        click.echo("Downloading Docling models to Docling's default cache...")
+
+    try:
+        subprocess.run(cmd, check=True)
+    except FileNotFoundError as exc:
+        raise click.ClickException(
+            "Cannot find 'docling-tools'.\n\n"
+            "Please make sure the virtual environment is activated "
+            "and Docling is installed:\n"
+            "  pip install -r requirements.txt\n"
+            "  pip install -e .\n\n"
+            f"Python executable: {sys.executable}"
+        ) from exc
+    except subprocess.CalledProcessError as exc:
+        raise click.ClickException(
+            f"Docling model download failed with exit code {exc.returncode}."
+        ) from exc
+
+    if model_path is not None:
+        click.echo(f"Docling models downloaded to: {model_path}")
+        click.echo(
+            "When parsing PDFs, set:\n"
+            f"  DOCLING_ARTIFACTS_PATH={model_path}"
+        )
+    else:
+        click.echo("Docling models downloaded.")
 
 @cli.command()
 @root_option

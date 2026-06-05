@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass,field,InitVar
 from pathlib import Path
 # pyprojroot 会寻找 .git、.here 等标志性文件来确定根目
 from pyprojroot import here
@@ -16,9 +16,10 @@ from src.tables_serialization import TableSerializer
 
 @dataclass
 class PipelineConfig:
+    """根据 root_path 和少量配置参数，集中生成整个 pipeline 后续步骤要用到的文件路径和目录路径。"""
     def __init__(self, root_path: Path, subset_name: str = "subset.csv", questions_file_name: str = "questions.json", pdf_reports_dir_name: str = "pdf_reports", serialized: bool = False, config_suffix: str = ""):
         self.root_path = root_path
-        suffix = "_ser_tab" if serialized else ""
+        suffix = "_ser_tab" if serialized else "" # 如果启用表格序列化则使用的另一套数据目录
 
         self.subset_path = root_path / subset_name
         self.questions_file_path = root_path / questions_file_name
