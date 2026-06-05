@@ -10,7 +10,10 @@ from typing import Iterable, List # Iterable：可迭代对象
 from docling.backend.docling_parse_v2_backend import DoclingParseV2DocumentBackend # 文档解析库
 # from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 from docling.datamodel.base_models import ConversionStatus # 判断docling转换是否成功
-from docling.datamodel.document import ConversionResult # Docling 转换 PDF 后返回的结果对象类型。
+try:
+    from docling.datamodel.document import ConversionResult
+except ImportError:  # newer Docling releases expose it here
+    from docling.document_converter import ConversionResult # Docling 转换 PDF 后返回的结果对象类型。
 
 _log = logging.getLogger(__name__)
 
@@ -67,12 +70,18 @@ class PDFParser:
 
     def _create_document_converter(self) -> "DocumentConverter": # type: ignore
         """Creates and returns a DocumentConverter with default pipeline options."""
-        from docling.document_converter import DocumentConverter, FormatOption
+        from docling.document_converter import DocumentConverter, PdfFormatOption
         from docling.datamodel.pipeline_options import PdfPipelineOptions, TableFormerMode, EasyOcrOptions
         from docling.datamodel.base_models import InputFormat
         from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
         
-        pipeline_options = PdfPipelineOptions()
+        artifacts_path = os.environ.get("DOCLING_ARTIFACTS_PATH")
+        if artifacts_path:
+            pipeline_options = PdfPipelineOptions(
+                artifacts_path=Path(artifacts_path).expanduser().resolve()
+            )
+        else:
+            pipeline_options = PdfPipelineOptions()
         pipeline_options.do_ocr = True # 开启OCR
         ocr_options = EasyOcrOptions(lang=['en'], force_full_page_ocr=False) # 识别英文，不强制整页OCR
         pipeline_options.ocr_options = ocr_options
@@ -83,7 +92,7 @@ class PDFParser:
 
         # 当输入格式是 PDF 时，使用 StandardPdfPipeline，配置参数是上面定义的 pipeline_options，PDF 后端使用 self.pdf_backend
         format_options = {
-            InputFormat.PDF: FormatOption(
+            InputFormat.PDF: PdfFormatOption(
                 pipeline_cls=StandardPdfPipeline,
                 pipeline_options=pipeline_options,
                 backend=self.pdf_backend

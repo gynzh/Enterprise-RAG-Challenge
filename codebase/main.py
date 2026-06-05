@@ -94,42 +94,39 @@ def resolve_model_path(output_dir: str | None) -> Path | None:
     default=None,
     help=(
         "Directory to save Docling models. "
-        "If omitted, uses Docling's default cache."
+        "If omitted, uses DOCLING_ARTIFACTS_PATH or Docling's default cache."
     ),
 )
 def download_models(output_dir: str | None):
     """Download required Docling models explicitly."""
+    import os
+    import shutil
     import subprocess
+
+    env_output_dir = os.environ.get("DOCLING_ARTIFACTS_PATH")
+    model_path = resolve_model_path(output_dir or env_output_dir)
 
     cmd = ["docling-tools", "models", "download"]
 
-    if output_dir is not None:
-        model_path = Path(output_dir).expanduser()
-
-        if not model_path.is_absolute():
-            model_path = PROJECT_ROOT / model_path
-
-        model_path = model_path.resolve()
+    if model_path is not None:
         model_path.mkdir(parents=True, exist_ok=True)
-
         cmd.extend(["-o", str(model_path)])
-
+        os.environ["DOCLING_ARTIFACTS_PATH"] = str(model_path)
         click.echo(f"Downloading Docling models to: {model_path}")
     else:
-        model_path = None
         click.echo("Downloading Docling models to Docling's default cache...")
+
+    if shutil.which("docling-tools") is None:
+        raise click.ClickException(
+            "Cannot find 'docling-tools'.\n\n"
+            "This command requires a newer Docling release. Run:\n"
+            "  uv lock --upgrade-package docling\n"
+            "  uv sync\n\n"
+            f"Python executable: {sys.executable}"
+        )
 
     try:
         subprocess.run(cmd, check=True)
-    except FileNotFoundError as exc:
-        raise click.ClickException(
-            "Cannot find 'docling-tools'.\n\n"
-            "Please make sure the virtual environment is activated "
-            "and Docling is installed:\n"
-            "  pip install -r requirements.txt\n"
-            "  pip install -e .\n\n"
-            f"Python executable: {sys.executable}"
-        ) from exc
     except subprocess.CalledProcessError as exc:
         raise click.ClickException(
             f"Docling model download failed with exit code {exc.returncode}."
@@ -138,8 +135,8 @@ def download_models(output_dir: str | None):
     if model_path is not None:
         click.echo(f"Docling models downloaded to: {model_path}")
         click.echo(
-            "When parsing PDFs, set:\n"
-            f"  DOCLING_ARTIFACTS_PATH={model_path}"
+            "When parsing PDFs in this shell, set:\n"
+            f"  $env:DOCLING_ARTIFACTS_PATH = \"{model_path}\""
         )
     else:
         click.echo("Docling models downloaded.")
