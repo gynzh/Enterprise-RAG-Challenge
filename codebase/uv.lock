@@ -607,6 +607,7 @@ requires-dist = [
     { name = "pypdf2", specifier = "==3.0.1" },
     { name = "pyprojroot", specifier = "==0.3.0" },
     { name = "python-dotenv", specifier = "==1.0.1" },
+    { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "rank-bm25", specifier = "==0.2.2" },
     { name = "requests", specifier = "==2.32.3" },
     { name = "sentence-transformers", specifier = "==5.0.0" },

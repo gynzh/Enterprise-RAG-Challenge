@@ -88,7 +88,7 @@ class PDFParser:
         pipeline_options.do_table_structure = True # 开启表格结构识别
         pipeline_options.table_structure_options.do_cell_matching = True # 开启单元格匹配。简单说，就是让 Docling 尝试把识别到的文字和表格单元格对应起来，而不是只识别一堆散乱文本。
         pipeline_options.table_structure_options.mode = TableFormerMode.ACCURATE # 表格识别模式设为 ACCURATE。这通常会比快速模式更慢，但表格结构更可靠。
-        pipeline_options.artifacts_path = Path(r"D:\桌面\typora文件\八斗AI\models\doclinng")
+        pipeline_options.artifacts_path = Path(os.getenv('DOCLING_ARTIFACTS_PATH'))
 
         # 当输入格式是 PDF 时，使用 StandardPdfPipeline，配置参数是上面定义的 pipeline_options，PDF 后端使用 self.pdf_backend
         format_options = {

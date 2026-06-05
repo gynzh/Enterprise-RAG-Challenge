@@ -5,6 +5,7 @@ description = "Enterprise RAG Challenge reproduction pipeline and visualization"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [ # 生产环境必须得直接依赖列表
+    "python-dotenv>=1.0.1",
     "aiohttp==3.10.10",
     "tiktoken==0.8.0",
     "python-dotenv==1.0.1",

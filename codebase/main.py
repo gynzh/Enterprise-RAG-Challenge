@@ -13,6 +13,17 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+def load_project_env() -> None:
+    """Load project-level .env file without overriding real environment variables."""
+    try:
+        from dotenv import load_dotenv
+    except ModuleNotFoundError:
+        return
+
+    env_path = PROJECT_ROOT / ".env"
+
+    if env_path.exists():
+        load_dotenv(env_path, override=False)
 
 def load_pipeline_objects() -> tuple[Any, dict[str, Any], dict[str, Any]]:
     """
@@ -56,7 +67,7 @@ def root_option(function):
     return click.option(
         "--root",
         type=click.Path(file_okay=False, dir_okay=True, path_type=str),
-        default=None,
+        default="data/test_set",
         help=(
             "Dataset root directory. Defaults to the current working directory. "
             "For this repository, `--root data/test_set` is usually what you want."
@@ -71,75 +82,56 @@ def root_option(function):
 def cli():
     """Pipeline command line interface for processing PDF reports and questions."""
 
-def resolve_model_path(output_dir: str | None) -> Path | None:
-    """Resolve the directory used to store Docling models."""
-    if output_dir is None:
-        output_dir = os.environ.get("DOCLING_ARTIFACTS_PATH")
-
-    if output_dir is None:
-        return None
-
-    candidate = Path(output_dir).expanduser()
-
-    if not candidate.is_absolute():
-        candidate = PROJECT_ROOT / candidate
-
-    return candidate.resolve()
 
 @cli.command()
-@click.option(
-    "--output-dir",
-    "-o",
-    type=click.Path(file_okay=False, dir_okay=True, path_type=str),
-    default=None,
-    help=(
-        "Directory to save Docling models. "
-        "If omitted, uses DOCLING_ARTIFACTS_PATH or Docling's default cache."
-    ),
-)
-def download_models(output_dir: str | None):
+def download_models():
     """Download required Docling models explicitly."""
-    import os
-    import shutil
-    import subprocess
 
-    env_output_dir = os.environ.get("DOCLING_ARTIFACTS_PATH")
-    model_path = resolve_model_path(output_dir or env_output_dir)
 
-    cmd = ["docling-tools", "models", "download"]
-
-    if model_path is not None:
-        model_path.mkdir(parents=True, exist_ok=True)
-        cmd.extend(["-o", str(model_path)])
-        os.environ["DOCLING_ARTIFACTS_PATH"] = str(model_path)
-        click.echo(f"Downloading Docling models to: {model_path}")
-    else:
-        click.echo("Downloading Docling models to Docling's default cache...")
-
-    if shutil.which("docling-tools") is None:
-        raise click.ClickException(
-            "Cannot find 'docling-tools'.\n\n"
-            "This command requires a newer Docling release. Run:\n"
-            "  uv lock --upgrade-package docling\n"
-            "  uv sync\n\n"
-            f"Python executable: {sys.executable}"
-        )
+    model_path = Path(os.environ.get("DOCLING_ARTIFACTS_PATH"))
 
     try:
-        subprocess.run(cmd, check=True)
-    except subprocess.CalledProcessError as exc:
+        from docling.utils.model_downloader import (
+            download_models as download_docling_models,
+        )
+    except ModuleNotFoundError as exc:
         raise click.ClickException(
-            f"Docling model download failed with exit code {exc.returncode}."
+            "Cannot import Docling Python model downloader."
         ) from exc
 
-    if model_path is not None:
-        click.echo(f"Docling models downloaded to: {model_path}")
-        click.echo(
-            "When parsing PDFs in this shell, set:\n"
-            f"  $env:DOCLING_ARTIFACTS_PATH = \"{model_path}\""
-        )
-    else:
-        click.echo("Docling models downloaded.")
+    try:
+        if model_path is not None:
+            model_path.mkdir(parents=True, exist_ok=True)
+
+            click.echo(f"Downloading Docling models to: {model_path}")
+
+            downloaded_path = download_docling_models(
+                output_dir=model_path
+            )
+
+            click.echo(f"Docling models downloaded to: {downloaded_path or model_path}")
+        else:
+            click.echo("Downloading Docling models to Docling's default cache...")
+
+            downloaded_path = download_docling_models()
+
+            if downloaded_path is not None:
+                click.echo(f"Docling models downloaded to: {downloaded_path}")
+            else:
+                click.echo("Docling models downloaded.")
+    except TypeError as exc:
+        raise click.ClickException(
+            "The installed Docling downloader does not support the expected "
+            "Python API signature.\n\n"
+            "Expected:\n"
+            "  download_models(output_dir=Path(...))\n\n"
+            "Please confirm that docling has been upgraded successfully:\n"
+            "  uv pip list | findstr docling"
+        ) from exc
+    except Exception as exc:
+        raise click.ClickException(
+            f"Docling model download failed: {exc}"
+        ) from exc
 
 @cli.command()
 @root_option
