@@ -4,8 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c5e81c4f-42e2-4869-a22f-668db1c15c04" name="更改" comment="main.py中download模型方法修改">
-      <change beforePath="$PROJECT_DIR$/codebase/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/codebase/main.py" afterDir="false" />
+    <list default="true" id="c5e81c4f-42e2-4869-a22f-668db1c15c04" name="更改" comment="EasyOCR依赖缺少（未解决）">
       <change beforePath="$PROJECT_DIR$/codebase/pyproject.toml" beforeDir="false" afterPath="$PROJECT_DIR$/codebase/pyproject.toml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/codebase/src/pdf_parsing.py" beforeDir="false" afterPath="$PROJECT_DIR$/codebase/src/pdf_parsing.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/codebase/uv.lock" beforeDir="false" afterPath="$PROJECT_DIR$/codebase/uv.lock" afterDir="false" />
@@ -87,12 +86,30 @@
       <option name="project" value="LOCAL" />
       <updated>1780642232290</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="通过.env管理环境变量">
+      <option name="closed" value="true" />
+      <created>1780643486050</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1780643486050</updated>
+    </task>
+    <task id="LOCAL-00004" summary="EasyOCR依赖缺少（未解决）">
+      <option name="closed" value="true" />
+      <created>1780644056059</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1780644056059</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="main.py中download模型方法修改（未完成）" />
     <MESSAGE value="main.py中download模型方法修改" />
-    <option name="LAST_COMMIT_MESSAGE" value="main.py中download模型方法修改" />
+    <MESSAGE value="通过.env管理环境变量" />
+    <MESSAGE value="EasyOCR依赖缺少（未解决）" />
+    <option name="LAST_COMMIT_MESSAGE" value="EasyOCR依赖缺少（未解决）" />
   </component>
 </project>
